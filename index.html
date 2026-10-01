@@ -508,8 +508,6 @@
           pendingRemoveIndex = -1;
         });
 
-        document.addEventListener("visibilitychange", () => { if (document.hidden) autoPause(); });
-        window.addEventListener("pagehide", autoPause);
       }
 
       async function init() {
