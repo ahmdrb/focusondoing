@@ -328,15 +328,6 @@
         }
       }
 
-      function autoPause() {
-        if (task && task.running) {
-          task.accumulated += Date.now() - task.startedAt;
-          task.running = false;
-          task.startedAt = 0;
-          save();
-          render();
-        }
-      }
       function syncTick() {
         const shouldRun = !!(task && task.running);
         if (shouldRun && !tickTimer) {
