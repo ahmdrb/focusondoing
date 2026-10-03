@@ -1,0 +1,972 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Focus</title>
+  <meta name="app-version" content="focus-references-2">
+  <meta name="theme-color" content="#000000" />
+  <meta name="description" content="One task, one clock, the present tense." />
+
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+
+  <style>
+    :root {
+      --bg: #000000;
+      --text: #f2f2f4;
+      --muted: #6e6e73;
+      --accent: #ff9f0a;
+      --danger: #ff453a;
+      --line: rgba(255,255,255,0.08);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      overscroll-behavior-y: none;
+    }
+
+    body { height: 100dvh; }
+
+    button { font: inherit; color: inherit; -webkit-tap-highlight-color: transparent; }
+
+    #app {
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      padding: env(safe-area-inset-top) 0 calc(env(safe-area-inset-bottom));
+    }
+
+    .clockzone {
+      flex: 0 0 auto;
+      text-align: center;
+      padding: 2.2rem 1rem 0.4rem;
+    }
+
+    #clock {
+      font-family: ui-monospace, "SF Mono", "Roboto Mono", Menlo, Consolas, monospace;
+      font-variant-numeric: tabular-nums;
+      font-size: clamp(3.2rem, 17vw, 5.4rem);
+      font-weight: 300;
+      letter-spacing: 0.01em;
+      color: #d8d8dc;
+      line-height: 1;
+    }
+
+    #doneTag {
+      margin-top: 0.5rem;
+      font-size: 0.8rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .stage {
+      flex: 1 1 auto;
+      overflow-y: auto;
+      padding: 1.15rem 1.4rem 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+    }
+
+    .mainline {
+      font-size: clamp(1.7rem, 7.5vw, 2.5rem);
+      font-weight: 600;
+      line-height: 1.18;
+      letter-spacing: -0.01em;
+      padding: 0.2rem 0;
+      outline: none;
+      overflow-wrap: anywhere;
+      min-height: 1.2em;
+    }
+
+    .subline {
+      font-size: clamp(1.05rem, 4.6vw, 1.3rem);
+      font-weight: 450;
+      line-height: 1.35;
+      color: #c7c7cc;
+      padding: 0.42rem 0;
+      outline: none;
+      overflow-wrap: anywhere;
+      border-top: 1px solid var(--line);
+    }
+
+    .subline:first-of-type { border-top: 0; }
+
+    .addsub, .prompt {
+      font-size: clamp(1.05rem, 4.6vw, 1.3rem);
+      color: var(--muted);
+      padding: 0.5rem 0;
+      outline: none;
+      overflow-wrap: anywhere;
+    }
+
+    .prompt {
+      font-size: clamp(1.5rem, 6.5vw, 2rem);
+      font-weight: 500;
+      color: var(--muted);
+      padding-top: 0.6rem;
+    }
+
+    [contenteditable][data-ph]:empty::before {
+      content: attr(data-ph);
+      color: var(--muted);
+      pointer-events: none;
+    }
+
+    .editing { color: var(--text) !important; }
+
+    .stage.done .mainline,
+    .stage.done .subline {
+      text-decoration: line-through;
+      text-decoration-color: rgba(255,255,255,0.28);
+      opacity: 0.5;
+    }
+
+    .stage.done .addsub { opacity: 0.35; }
+
+    .footer {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 2.4rem;
+      padding: 0.6rem 1rem 1.4rem;
+    }
+
+    .rbtn {
+      width: 74px;
+      height: 74px;
+      border-radius: 50%;
+      border: 0;
+      background: #1c1c1e;
+      color: var(--text);
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      transition: transform 120ms ease, opacity 120ms ease, background 120ms ease;
+    }
+
+    .rbtn:active { transform: scale(0.94); }
+    .rbtn:disabled { opacity: 0.32; cursor: default; }
+    .rbtn:disabled:active { transform: none; }
+
+    .rbtn.mid {
+      width: 86px;
+      height: 86px;
+      background: rgba(255,159,10,0.16);
+      color: var(--accent);
+    }
+
+    .rbtn svg { width: 30px; height: 30px; fill: currentColor; stroke: none; }
+    .rbtn.mid svg { width: 34px; height: 34px; }
+
+    #btnPlay .ic-pause { display: none; }
+    #btnPlay.is-running .ic-play { display: none; }
+    #btnPlay.is-running .ic-pause { display: block; }
+
+
+
+    .connection {
+      position: fixed;
+      top: calc(env(safe-area-inset-top) + 0.45rem);
+      right: 0.7rem;
+      z-index: 10;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.38rem;
+      padding: 0.28rem 0.52rem;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.055);
+      color: var(--muted);
+      font-size: 0.68rem;
+      letter-spacing: 0.04em;
+      opacity: 0;
+      transform: translateY(-3px);
+      pointer-events: none;
+      transition: opacity 180ms ease, transform 180ms ease;
+    }
+
+    .connection.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .connection-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #777;
+    }
+
+    .connection.offline .connection-dot {
+      background: var(--danger);
+    }
+
+    .references {
+      flex: 0 0 auto;
+      padding: 0.15rem 1.4rem 0.2rem;
+      margin-bottom: 0.15rem;
+    }
+
+    .references-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.55rem;
+    }
+
+    .references-title {
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    #btnAddReference {
+      border: 0;
+      background: transparent;
+      color: var(--accent);
+      font-size: 0.92rem;
+      padding: 0.25rem 0;
+      cursor: pointer;
+    }
+
+    .reference-list {
+      display: flex;
+      gap: 0.55rem;
+      overflow-x: auto;
+      padding: 0 0 0.55rem;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .reference-list::-webkit-scrollbar { display: none; }
+
+    .reference {
+      flex: 0 0 auto;
+      border: 1px solid rgba(255,255,255,0.09);
+      border-radius: 999px;
+      background: #151517;
+      color: #e9e9ed;
+      padding: 0.58rem 0.9rem;
+      cursor: pointer;
+      max-width: 210px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      transition: transform 120ms ease, background 120ms ease, border-color 120ms ease;
+    }
+
+    .reference:active {
+      transform: scale(0.96);
+      background: #1c1c1f;
+    }
+
+    .reference.empty {
+      color: var(--muted);
+      border-style: dashed;
+      cursor: default;
+    }
+
+    .reference-wrap {
+      position: relative;
+      flex: 0 0 auto;
+    }
+
+    .reference-wrap.is-selected .reference {
+      border-color: rgba(255,159,10,0.45);
+      background: rgba(255,159,10,0.10);
+    }
+
+    .reference-menu {
+      display: none;
+    }
+
+    .reference-hint {
+      margin: 0.1rem 0 0;
+      color: var(--muted);
+      font-size: 0.78rem;
+      line-height: 1.25;
+    }
+
+    .reference-context {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      min-width: 0;
+    }
+
+    .reference-context button {
+      width: 100%;
+      border: 0;
+      border-radius: 13px;
+      padding: 0.72rem 0.8rem;
+      background: rgba(255,255,255,0.07);
+      color: var(--text);
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .reference-context button.danger {
+      color: #ff6b61;
+    }
+
+
+    #referenceContextDialog {
+      width: min(88vw, 340px);
+    }
+
+    #referenceContextDialog p {
+      font-size: 1.08rem;
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+      overflow-wrap: anywhere;
+    }
+
+    .reference-context {
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+    }
+
+    .reference-context button {
+      width: 100%;
+      border: 0;
+      border-radius: 14px;
+      padding: 0.75rem 0.8rem;
+      background: rgba(255,255,255,0.07);
+      color: var(--text);
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .reference-context button.danger {
+      color: #ff6b61;
+    }
+
+    dialog {
+      width: min(86vw, 320px);
+      padding: 1.1rem;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: #131315;
+      color: var(--text);
+    }
+    dialog::backdrop { background: rgba(0,0,0,0.6); }
+    dialog p { margin: 0 0 0.4rem; font-size: 0.98rem; line-height: 1.45; color: #d8d8dc; }
+    dialog menu { display: flex; justify-content: flex-end; gap: 0.5rem; margin: 0.9rem 0 0; padding: 0; list-style: none; }
+    dialog button { border: 0; border-radius: 14px; padding: 0.66rem 0.95rem; background: rgba(255,255,255,0.08); cursor: pointer; }
+    dialog button.danger { background: var(--danger); color: #fff; font-weight: 650; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div id="connectionStatus" class="connection" aria-live="polite">
+      <span class="connection-dot"></span>
+      <span id="connectionText">Offline</span>
+    </div>
+    <div class="clockzone">
+      <div id="clock">00:00</div>
+      <div id="doneTag" hidden>completed</div>
+    </div>
+
+    <section class="references" aria-label="References">
+      <div class="references-head">
+        <div class="references-title">References</div>
+        <button id="btnAddReference" type="button">+ Add</button>
+      </div>
+      <div id="referenceList" class="reference-list"></div>
+    </section>
+
+    <main id="stage" class="stage"></main>
+
+    <div class="footer">
+      <button id="btnReset" class="rbtn" aria-label="Clear stage">
+        <svg viewBox="0 0 24 24"><path d="M12 5V2L7 6l5 4V7a5 5 0 1 1-5 5H5a7 7 0 1 0 7-7z"/></svg>
+      </button>
+
+      <button id="btnPlay" class="rbtn mid" aria-label="Start or pause">
+        <svg class="ic-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+        <svg class="ic-pause" viewBox="0 0 24 24"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>
+      </button>
+
+      <button id="btnDone" class="rbtn" aria-label="Complete">
+        <svg viewBox="0 0 24 24"><path d="M11 3h2v3.06A7 7 0 0 1 19 13v5h1v2H4v-2h1v-5a7 7 0 0 1 6-6.94V3zm-1 9v6h4v-6a3 3 0 0 0-4 0z" opacity="0"/><path d="M9 3h6v2h-1v1.06A7 7 0 0 1 19 12v5h1v2H4v-2h1v-5a7 7 0 0 1 5-5.94V5H9V3zm2 6.06V17h2V9.06A5 5 0 0 0 11 9.06z" opacity="0"/><path d="M6 21v-2h12v2H6zm1-4V11a5 5 0 0 1 10 0v6H7zm4-9V3h2v5h-2z"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <dialog id="referenceContextDialog">
+    <p id="referenceContextTitle">Reference</p>
+    <div class="reference-context">
+      <button type="button" id="referenceRename">Rename</button>
+      <button type="button" id="referenceDelete" class="danger">Delete</button>
+      <button type="button" id="referenceContextCancel">Cancel</button>
+    </div>
+  </dialog>
+
+  <dialog id="referenceDialog">
+    <p id="referenceDialogTitle">Add reference</p>
+    <input id="referenceInput" type="text" maxlength="120"
+      placeholder="e.g. Study, Coding, Exercise"
+      style="width:100%;border:1px solid var(--line);border-radius:12px;background:#1c1c1e;color:var(--text);padding:0.7rem 0.8rem;outline:none;">
+    <menu>
+      <button type="button" id="referenceCancel">Cancel</button>
+      <button type="button" id="referenceSave" class="danger">Save</button>
+    </menu>
+  </dialog>
+
+  <dialog id="removeDialog">
+    <p>Remove this step?</p>
+    <menu>
+      <button type="button" id="removeCancel">Cancel</button>
+      <button type="button" id="removeConfirm" class="danger">Remove</button>
+    </menu>
+  </dialog>
+
+  <script>
+    (() => {
+      "use strict";
+
+      const KEY = "focus.task.v1";
+      const REFERENCES_KEY = "focus.references.v1";
+
+      const el = (id) => document.getElementById(id);
+      const clockEl = el("clock");
+      const doneTag = el("doneTag");
+      const connectionStatus = el("connectionStatus");
+      const connectionText = el("connectionText");
+      const stage = el("stage");
+      const btnReset = el("btnReset");
+      const btnPlay = el("btnPlay");
+      const btnDone = el("btnDone");
+      const btnAddReference = el("btnAddReference");
+      const referenceList = el("referenceList");
+      const referenceDialog = el("referenceDialog");
+      const referenceDialogTitle = el("referenceDialogTitle");
+      const referenceInput = el("referenceInput");
+      const referenceCancel = el("referenceCancel");
+      const referenceSave = el("referenceSave");
+      const referenceContextDialog = el("referenceContextDialog");
+      const referenceContextTitle = el("referenceContextTitle");
+      const referenceRename = el("referenceRename");
+      const referenceDelete = el("referenceDelete");
+      const referenceContextCancel = el("referenceContextCancel");
+      const removeDialog = el("removeDialog");
+      const removeCancel = el("removeCancel");
+      const removeConfirm = el("removeConfirm");
+
+      let task = null;
+      let tickTimer = null;
+      let pendingRemoveIndex = -1;
+      let references = [];
+      let editingReferenceIndex = -1;
+      let contextReferenceIndex = -1;
+      let contextReferenceIndex = -1;
+
+      function pad(n) { return String(n).padStart(2, "0"); }
+
+      function format(ms, live) {
+        ms = Math.max(0, Math.floor(ms));
+        const ts = Math.floor(ms / 1000);
+        const h = Math.floor(ts / 3600);
+        const m = Math.floor((ts % 3600) / 60);
+        const s = ts % 60;
+        const cs = Math.floor((ms % 1000) / 10);
+        if (h > 0) return h + ":" + pad(m) + ":" + pad(s);
+        let out = pad(m) + ":" + pad(s);
+        if (live) out += "." + pad(cs);
+        return out;
+      }
+
+      function elapsed() {
+        if (!task) return 0;
+        return task.accumulated + (task.running ? Date.now() - task.startedAt : 0);
+      }
+
+      function load() {
+        try {
+          const raw = localStorage.getItem(KEY);
+          if (!raw) return null;
+          const t = JSON.parse(raw);
+          if (!t || typeof t !== "object") return null;
+          t.text = typeof t.text === "string" ? t.text : "";
+          t.subs = Array.isArray(t.subs) ? t.subs.map(String) : [];
+          t.running = !!t.running;
+          t.completed = !!t.completed;
+          t.accumulated = Number(t.accumulated) || 0;
+          t.startedAt = Number(t.startedAt) || 0;
+          return t;
+        } catch { return null; }
+      }
+
+      function save() {
+        try { localStorage.setItem(KEY, JSON.stringify(task)); } catch {}
+      }
+
+      function loadReferences() {
+        try {
+          const raw = localStorage.getItem(REFERENCES_KEY);
+          if (!raw) return [];
+          const list = JSON.parse(raw);
+          if (!Array.isArray(list)) return [];
+          return list
+            .map(v => typeof v === "string" ? v.trim() : "")
+            .filter(Boolean)
+            .filter((v, i, a) => a.indexOf(v) === i);
+        } catch { return []; }
+      }
+
+      function saveReferences() {
+        try {
+          localStorage.setItem(REFERENCES_KEY, JSON.stringify(references));
+        } catch {}
+      }
+
+      function useReference(name) {
+        const value = String(name || "").trim();
+        if (!value) return;
+
+        // Selecting a reference creates a fresh focus session.
+        task = {
+          text: value,
+          subs: [],
+          running: true,
+          startedAt: Date.now(),
+          accumulated: 0,
+          completed: false
+        };
+        save();
+        render();
+      }
+
+      function openReferenceDialog(index = -1) {
+        editingReferenceIndex = index;
+        referenceDialogTitle.textContent =
+          index >= 0 ? "Edit reference" : "Add reference";
+        referenceInput.value = index >= 0 ? references[index] : "";
+        referenceDialog.showModal();
+        setTimeout(() => {
+          referenceInput.focus();
+          referenceInput.select();
+        }, 30);
+      }
+
+      function saveReferenceFromDialog() {
+        const value = referenceInput.value.replace(/\s+/g, " ").trim();
+        if (!value) return;
+
+        if (editingReferenceIndex >= 0) {
+          references[editingReferenceIndex] = value;
+        } else if (!references.includes(value)) {
+          references.push(value);
+        }
+
+        saveReferences();
+        referenceDialog.close();
+        editingReferenceIndex = -1;
+        renderReferences();
+      }
+
+      function deleteReference(index) {
+        if (index < 0 || index >= references.length) return;
+        if (!window.confirm(`Delete "${references[index]}" from References?`)) return;
+        references.splice(index, 1);
+        saveReferences();
+        renderReferences();
+      }
+
+      function openReferenceContext(index) {
+        if (index < 0 || index >= references.length) return;
+        contextReferenceIndex = index;
+        referenceContextTitle.textContent = references[index];
+        referenceContextDialog.showModal();
+      }
+
+      function closeReferenceContext() {
+        referenceContextDialog.close();
+        contextReferenceIndex = -1;
+      }
+
+      function attachReferenceLongPress(node, index) {
+        let timer = null;
+        let moved = false;
+        let suppressed = false;
+        let sx = 0, sy = 0;
+
+        node.addEventListener("pointerdown", (e) => {
+          if (e.pointerType === "mouse" && e.button !== 0) return;
+          sx = e.clientX;
+          sy = e.clientY;
+          moved = false;
+          suppressed = false;
+          clearTimeout(timer);
+          timer = setTimeout(() => {
+            if (!moved) {
+              suppressed = true;
+              openReferenceContext(index);
+            }
+          }, 500);
+        });
+
+        node.addEventListener("pointermove", (e) => {
+          if (Math.abs(e.clientX - sx) > 10 || Math.abs(e.clientY - sy) > 10) {
+            moved = true;
+            clearTimeout(timer);
+          }
+        });
+
+        const cancel = () => clearTimeout(timer);
+        node.addEventListener("pointerup", cancel);
+        node.addEventListener("pointercancel", cancel);
+
+        node.addEventListener("click", (e) => {
+          if (suppressed) {
+            suppressed = false;
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        });
+
+        node.addEventListener("contextmenu", (e) => {
+          e.preventDefault();
+          openReferenceContext(index);
+        });
+      }
+
+      function renderReferences() {
+        referenceList.innerHTML = "";
+
+        if (!references.length) {
+          const empty = document.createElement("div");
+          empty.className = "reference empty";
+          empty.textContent = "No saved routines yet";
+          referenceList.appendChild(empty);
+          return;
+        }
+
+        references.forEach((name, i) => {
+          const wrap = document.createElement("div");
+          wrap.className = "reference-wrap";
+
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "reference";
+          button.textContent = name;
+          button.title = `Start ${name}`;
+          button.addEventListener("click", () => useReference(name));
+
+          attachReferenceLongPress(button, i);
+
+          wrap.appendChild(button);
+          referenceList.appendChild(wrap);
+        });
+      }
+
+      function resetClock() {
+        if (!task) return;
+        task.accumulated = 0;
+        task.running = false;
+        task.startedAt = 0;
+      }
+
+      function start() {
+        if (!task || task.completed || !task.text.trim()) return;
+        task.running = true;
+        task.startedAt = Date.now();
+        save();
+        render();
+      }
+
+      function pause() {
+        if (task && task.running) {
+          task.accumulated += Date.now() - task.startedAt;
+          task.running = false;
+          task.startedAt = 0;
+          save();
+        }
+        render();
+      }
+
+      function complete() {
+        if (!task || task.completed || !task.text.trim()) return;
+        if (task.running) {
+          task.accumulated += Date.now() - task.startedAt;
+          task.running = false;
+          task.startedAt = 0;
+        }
+        task.completed = true;
+        save();
+        render();
+      }
+
+      function clearStage() {
+        if (!task) return;
+        if (window.confirm("Clear the stage? This removes the current task.")) {
+          task = null;
+          save();
+          render();
+        }
+      }
+
+      function syncTick() {
+        const shouldRun = !!(task && task.running);
+        if (shouldRun && !tickTimer) {
+          tickTimer = setInterval(() => { clockEl.textContent = format(elapsed(), true); }, 80);
+        } else if (!shouldRun && tickTimer) {
+          clearInterval(tickTimer);
+          tickTimer = null;
+        }
+      }
+
+      function commitFromEditable(node) {
+        const k = node.dataset.k;
+        const val = node.textContent.replace(/\s+/g, " ").trim();
+        if (!task && k !== "prompt") return;
+        const wasCompleted = task && task.completed;
+
+        if (k === "prompt") {
+          if (val) {
+            task = { text: val, subs: [], running: false, startedAt: 0, accumulated: 0, completed: false };
+            save();
+          }
+          render();
+          return;
+        }
+        if (k === "main") {
+          task.text = val;
+          if (wasCompleted) { resetClock(); task.completed = false; }
+        } else if (k === "sub") {
+          const i = Number(node.dataset.i);
+          task.subs[i] = val;
+          if (wasCompleted) { resetClock(); task.completed = false; }
+        } else if (k === "addsub") {
+          if (val) {
+            task.subs.push(val);
+            if (wasCompleted) { resetClock(); task.completed = false; }
+          }
+        }
+        save();
+        render();
+      }
+
+      function enterEdit(node) {
+        if (node.isContentEditable) return;
+        node.dataset.orig = node.textContent;
+        node.contentEditable = "true";
+        node.classList.add("editing");
+        node.focus();
+        const r = document.createRange();
+        r.selectNodeContents(node);
+        r.collapse(false);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(r);
+        node.addEventListener("blur", onEditBlur, { once: true });
+        node.addEventListener("keydown", onEditKey);
+      }
+
+      function onEditKey(e) {
+        if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); }
+        else if (e.key === "Escape") { e.currentTarget.textContent = e.currentTarget.dataset.orig || ""; e.currentTarget.blur(); }
+      }
+
+      function onEditBlur(e) {
+        const node = e.currentTarget;
+        node.contentEditable = "false";
+        node.classList.remove("editing");
+        node.removeEventListener("keydown", onEditKey);
+        commitFromEditable(node);
+      }
+
+      function attachTapLong(node, onTap, onLong) {
+        let sx = 0, sy = 0, lp = null, suppressed = false;
+        node.addEventListener("pointerdown", (e) => {
+          if (e.pointerType === "mouse" && e.button !== 0) return;
+          sx = e.clientX; sy = e.clientY; suppressed = false;
+          clearTimeout(lp);
+          lp = setTimeout(() => { suppressed = true; if (onLong && !node.isContentEditable) onLong(); }, 450);
+        });
+        node.addEventListener("pointermove", (e) => {
+          if (Math.abs(e.clientX - sx) > 10 || Math.abs(e.clientY - sy) > 10) clearTimeout(lp);
+        });
+        const cancel = () => clearTimeout(lp);
+        node.addEventListener("pointerup", cancel);
+        node.addEventListener("pointercancel", cancel);
+        node.addEventListener("click", (e) => {
+          if (suppressed) { suppressed = false; e.preventDefault(); e.stopPropagation(); return; }
+          if (!node.isContentEditable && onTap) onTap();
+        });
+        node.addEventListener("contextmenu", (e) => { e.preventDefault(); if (onLong && !node.isContentEditable) onLong(); });
+      }
+
+      function makeEditableLine(tag, cls, k, text, idx) {
+        const n = document.createElement(tag);
+        n.className = cls;
+        n.dataset.k = k;
+        if (idx != null) n.dataset.i = String(idx);
+        n.textContent = text || "";
+        return n;
+      }
+
+      function render() {
+        renderReferences();
+        clockEl.textContent = format(elapsed(), !!(task && task.running));
+        doneTag.hidden = !(task && task.completed);
+        stage.classList.toggle("done", !!(task && task.completed));
+        stage.innerHTML = "";
+
+        if (!task) {
+          const p = makeEditableLine("div", "prompt", "prompt", "");
+          p.setAttribute("contenteditable", "true");
+          p.setAttribute("data-ph", "What are you focusing on?");
+          p.spellcheck = false;
+          p.addEventListener("blur", () => commitFromEditable(p));
+          p.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") { e.preventDefault(); p.blur(); }
+            else if (e.key === "Escape") { p.textContent = ""; p.blur(); }
+          });
+          stage.appendChild(p);
+          setTimeout(() => p.focus(), 30);
+        } else {
+          const main = makeEditableLine("div", "mainline", "main", task.text);
+          attachTapLong(main, () => enterEdit(main), null);
+          stage.appendChild(main);
+
+          task.subs.forEach((s, i) => {
+            const sub = makeEditableLine("div", "subline", "sub", s, i);
+            attachTapLong(sub, () => enterEdit(sub), () => openRemove(i));
+            stage.appendChild(sub);
+          });
+
+          const add = makeEditableLine("div", "addsub", "addsub", "");
+          add.setAttribute("contenteditable", "true");
+          add.setAttribute("data-ph", "+ add a step");
+          add.spellcheck = false;
+          add.addEventListener("blur", () => commitFromEditable(add));
+          add.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") { e.preventDefault(); add.blur(); }
+            else if (e.key === "Escape") { add.textContent = ""; add.blur(); }
+          });
+          stage.appendChild(add);
+        }
+
+        const hasText = !!(task && task.text.trim());
+        btnReset.disabled = !task;
+        btnPlay.disabled = !task || task.completed || !hasText;
+        btnPlay.classList.toggle("is-running", !!(task && task.running));
+        btnDone.disabled = !task || task.completed || !hasText;
+
+        syncTick();
+      }
+
+      function openRemove(i) {
+        pendingRemoveIndex = i;
+        removeDialog.showModal();
+      }
+
+      function bindEvents() {
+        btnAddReference.addEventListener("click", () => openReferenceDialog());
+        referenceCancel.addEventListener("click", () => {
+          referenceDialog.close();
+          editingReferenceIndex = -1;
+        });
+        referenceSave.addEventListener("click", saveReferenceFromDialog);
+
+        referenceContextCancel.addEventListener("click", closeReferenceContext);
+
+        referenceRename.addEventListener("click", () => {
+          const i = contextReferenceIndex;
+          closeReferenceContext();
+          if (i >= 0 && i < references.length) openReferenceDialog(i);
+        });
+
+        referenceDelete.addEventListener("click", () => {
+          const i = contextReferenceIndex;
+          closeReferenceContext();
+          deleteReference(i);
+        });
+
+        referenceInput.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            saveReferenceFromDialog();
+          } else if (e.key === "Escape") {
+            referenceDialog.close();
+            editingReferenceIndex = -1;
+          }
+        });
+
+        btnReset.addEventListener("click", clearStage);
+        btnPlay.addEventListener("click", () => { if (task && task.running) pause(); else start(); });
+        btnDone.addEventListener("click", complete);
+
+        removeCancel.addEventListener("click", () => removeDialog.close());
+        removeConfirm.addEventListener("click", () => {
+          removeDialog.close();
+          if (task && pendingRemoveIndex >= 0 && pendingRemoveIndex < task.subs.length) {
+            task.subs.splice(pendingRemoveIndex, 1);
+            save();
+            render();
+          }
+          pendingRemoveIndex = -1;
+        });
+
+      }
+
+      function updateConnectionStatus() {
+        const online = navigator.onLine;
+        connectionStatus.classList.toggle("offline", !online);
+        connectionText.textContent = online ? "Online" : "Offline";
+
+        // Only show the indicator when offline, or briefly after reconnecting.
+        connectionStatus.classList.toggle("visible", !online);
+      }
+
+      async function init() {
+        window.addEventListener("online", updateConnectionStatus);
+        window.addEventListener("offline", updateConnectionStatus);
+        updateConnectionStatus();
+
+        task = load();
+        references = loadReferences();
+        bindEvents();
+        render();
+
+        if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+
+        if ("serviceWorker" in navigator) {
+          let refreshing = false;
+          navigator.serviceWorker.addEventListener("controllerchange", () => {
+            if (refreshing) return;
+            refreshing = true;
+            window.location.reload();
+          });
+
+          window.addEventListener("load", async () => {
+            try {
+              const reg = await navigator.serviceWorker.register("./sw.js", {
+                updateViaCache: "none"
+              });
+              await reg.update();
+            } catch {}
+          });
+        }
+      }
+
+      init();
+    })();
+  </script>
+</body>
+</html>
